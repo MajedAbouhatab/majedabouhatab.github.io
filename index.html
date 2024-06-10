@@ -15,7 +15,12 @@
 </body>
 
   <script>
-document.getElementsByTagName('body')[0].innerHTML = '<h1>Some text!</h1>';
+
+     const response = await fetch("http://example.com/movies.json");
+  const movies = await response.json();
+  // console.log();
+    
+    document.getElementsByTagName('body')[0].innerHTML = movies;
     
   </script>
 
