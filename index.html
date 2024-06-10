@@ -16,11 +16,24 @@
 
   <script>
 
-     const response = await fetch("http://example.com/movies.json");
-  const movies = await response.json();
-  // console.log();
+  //    const response = await fetch("http://example.com/movies.json");
+  // const movies = await response.json();
+  // // console.log();
     
-    document.getElementsByTagName('body')[0].innerHTML = movies;
+  //   document.getElementsByTagName('body')[0].innerHTML = movies;
+
+
+    const xhr = new XMLHttpRequest();
+xhr.open("GET", "https://jsonplaceholder.typicode.com/posts/1");
+xhr.send();
+xhr.responseType = "json";
+xhr.onload = () => {
+  if (xhr.readyState == 4 && xhr.status == 200) {
+    console.log(xhr.response);
+  } else {
+    console.log(`Error: ${xhr.status}`);
+  }
+};
     
   </script>
 
