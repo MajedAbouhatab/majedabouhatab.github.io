@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+
+<body>
+  <script type="text/javascript">
+    const Main = async () => {
+      let user_name = (new URL(window.location.href)).searchParams.get("user_name");
+      user_name = user_name == null || user_name == '' ? 'abouhatab' : String(user_name);
+      let Profile = (await (await fetch('https://www.hackster.io/' + user_name)).text());
+      let author_id = Profile.split('entityId')[1].split('"')[1];
+      if (isNaN(author_id)) author_id = '648001';
+      Profile = (new DOMParser()).parseFromString(Profile.split('<div class="">')[1], 'text/html').body.firstChild.firstChild.firstChild;
+      document.write('<!DOCTYPE html><html><head><style>');
+      document.write('table { border-collapse: collapse; border-radius: 10px; outline: 1px solid gray; margin: 0px auto; text-align: center; width:90%}');
+      document.write('th, td { padding: 8px;}');
+      document.write('img { border-radius: 8px; height:90px;}');
+      document.write('tr:nth-child(even) { background-color: #2E9FE6;}');
+      document.write('</style></head><body>');
+      document.write('<br><br><table style="width:0; white-space:nowrap; background-color:#2E9FE6;"><tr><td>');
+      document.write('<a href="' + Profile.firstChild.getAttribute('src') + '" target="_blank"><img src="' + Profile.firstChild.getAttribute('src') + '"></a>');
+      document.write('</td><td><a href="' + 'https://www.hackster.io/' + user_name + '" target="_blank">' + Profile.firstChild.nextSibling.firstChild.textContent + '</a>');
+      document.write('</td><td>' + Profile.firstChild.nextSibling.firstChild.nextSibling.firstChild.textContent + '</td><td>');
+      document.write('<form action="?" target="_top" method="get">');
+      document.write('<input type="text" id="user_name" name="user_name" value="' + user_name + '">');
+      document.write('<input type="submit" value="Submit"></form>');
+      document.write('</td></tr></table><br><hr style="width:90%;"><br>');
+      const client_token = (await (await fetch('https://www.hackster.io/users/api_token')).json())['client_token'];
+      let response = (await (await fetch('https://api.hackster.io/graphql/query?json_data={"t":"projects_with_simple_pagination","variables":{"author_id":'
+        + author_id + ',"guest_post":false,"publication_state":"PUBLIC","sort":"DATE_DESC","per_page":100}}',
+        { headers: { "Authorization": "Bearer " + client_token } })).text());
+      document.write('<table>');
+      document.write('<tr>');
+      document.write('<th>Cover image</th>');
+      document.write('<th>Project name <br> Elevator pitch</th>');
+      document.write('<th>Schematics</th>');
+      document.write('<th>Code</th>');
+      document.write('<th>Respects <br> Views <br> Published</th>');
+      document.write('</tr>');
+      for (let f of JSON.parse(response)['projects']['records']) {
+        let TableRow = '';
+        TableRow += '<tr><td><a href="' + f['cover_image_url'] + '" target="_blank"><img src="' + f['cover_image_url'] + '"></a>';
+        TableRow += '</td><td><a href="' + f['url'] + '" target="_blank">' + f['name'] + '</a><br>' + f['one_liner'];
+        TableRow += '</td><td>||1||';
+        TableRow += '</td><td>||2||';
+        TableRow += '</td><td>' + f['stats']['respects'] + ' <br> ' + f['stats']['views'] + '<br>||3||</td></tr>';
+        response = (await (await fetch(f['url'])).text());
+        try {
+          const TempImage = response.split('<section id="schematics">')[1].split('<div class="embed')[1].split('src="')[1].split('"')[0];
+          if (['apng', 'gif', 'ico', 'cur', 'jpg', 'jpeg', 'jfif', 'pjpeg', 'pjp', 'png', 'apng', 'svg', 'avif', 'webp']
+            .includes(TempImage.split('.').pop().toLowerCase())) TableRow = TableRow.replace('||1||', '<a href="'
+              + TempImage + '?auto=compress%2Cformat" target="_blank"><img src="' + TempImage + '"></a>');
+          else throw 0;
+        }
+        catch {
+          TableRow = TableRow.replace('||1||', '');
+        }
+        try {
+          let CodeURL = response.split('<section id="code">')[1].split('<div class="actions">')[1].split('href="')[1].split('"')[0];
+          if (CodeURL == '#svg-clipboard') CodeURL = f['url'].replace('www.', '') + '#code';
+          TableRow = TableRow.replace('||2||', '<a href="' + CodeURL + '" target="_blank">' + CodeURL.split('/')[2] + '</a>');
+        }
+        catch {
+          TableRow = TableRow.replace('||2||', '');
+        }
+        try {
+          TableRow = TableRow.replace('||3||', response.split('itemprop="datePublished">')[1].split('<')[0]);
+        }
+        catch {
+          TableRow = TableRow.replace('||3||', '');
+        }
+        document.write(TableRow);
+      }
+      document.write('</table><br><br><br>');
+      document.write('</body></html>');
+    };
+    Main();
+  </script>
+</body>
+
+</html>
