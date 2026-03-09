@@ -7,7 +7,8 @@
       let user_name = (new URL(window.location.href)).searchParams.get("user_name");
       user_name = user_name == null || user_name == '' ? 'abouhatab' : String(user_name);
       let Profile = (await (await fetch('https://www.hackster.io/' + user_name)).text());
-      let author_id = Profile.split('entityId')[1].split('"')[1];
+      //let author_id = Profile.split('entityId')[1].split('"')[1];
+      let author_id = Profile.split('window.HAnalyticsGlobalData.entity_id = ')[1].split(';')[0]
       if (isNaN(author_id)) author_id = '648001';
       Profile = (new DOMParser()).parseFromString(Profile.split('<div class="">')[1], 'text/html').body.firstChild.firstChild.firstChild;
       document.write('<!DOCTYPE html><html><head><style>');
