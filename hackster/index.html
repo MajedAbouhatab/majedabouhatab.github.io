@@ -35,7 +35,7 @@
       document.write('<th>Project name <br> Elevator pitch</th>');
       document.write('<th>Schematics</th>');
       document.write('<th>Code</th>');
-      document.write('<th>Respects <br> Views <br> Published</th>');
+      document.write('<th>Respects <br> Views <br> Comments <br> Published</th>');
       document.write('</tr>');
       for (let f of JSON.parse(response)['projects']['records']) {
         let TableRow = '';
@@ -43,7 +43,7 @@
         TableRow += '</td><td><a href="' + f['url'] + '" target="_blank">' + f['name'] + '</a><br>' + f['one_liner'];
         TableRow += '</td><td>||1||';
         TableRow += '</td><td>||2||';
-        TableRow += '</td><td>' + f['stats']['respects'] + ' <br> ' + f['stats']['views'] + '<br>||3||</td></tr>';
+        TableRow += '</td><td>' + f['stats']['respects'] + ' <br> ' + f['stats']['views'] + '<br>||3||'+ '<br>||4||</td></tr>';
         response = (await (await fetch(f['url'])).text());
         try {
           const TempImage = response.split('<section id="schematics">')[1].split('<div class="embed')[1].split('src="')[1].split('"')[0];
@@ -64,11 +64,19 @@
           TableRow = TableRow.replace('||2||', '');
         }
         try {
-          TableRow = TableRow.replace('||3||', response.split('itemprop="datePublished">')[1].split('<')[0]);
+          TableRow = TableRow.replace('||4||', response.split('itemprop="datePublished">')[1].split('<')[0]);
+        }
+        catch {
+          TableRow = TableRow.replace('||4||', '');
+        }
+
+        try {
+          TableRow = TableRow.replace('||3||', response.split('href="#comments">Comments<span class="nav-count">(')[1].split(')</span>')[0]);
         }
         catch {
           TableRow = TableRow.replace('||3||', '');
         }
+
         document.write(TableRow);
       }
       document.write('</table><br><br><br>');
