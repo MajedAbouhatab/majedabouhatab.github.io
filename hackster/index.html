@@ -1,177 +1,4 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Hackster Project Viewer</title>
-  <style>
-    body { font-family: sans-serif; background-color: #f7f9fa; margin: 0; padding: 20px; }
-    table { border-collapse: collapse; border-radius: 10px; outline: 1px solid gray; margin: 0px auto; text-align: center; width: 90%; background-color: white; overflow: hidden; }
-    th, td { padding: 12px; border-bottom: 1px solid #ddd; }
-    th { background-color: #2E9FE6; color: white; }
-    img { border-radius: 8px; height: 90px; width: 120px; object-fit: cover; }
-    tr:nth-child(even) { background-color: #e6f4fc; }
-    .profile-table { width: auto; white-space: nowrap; background-color: #2E9FE6; color: white; margin: 20px auto; border-radius: 10px; }
-    .profile-table a { color: white; font-weight: bold; }
-    .search-form { display: inline-flex; gap: 5px; }
-    .search-form input[type="text"] { padding: 4px; border-radius: 4px; border: 1px solid #ccc; }
-    .search-form input[type="submit"] { background: #1a7bb8; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
-  </style>
-</head>
-<body>
-
-  <!-- Dynamic Mount Targets -->
-  <div id="profile-target"></div>
-  <div id="table-target"></div>
-
-  <script type="text/javascript">
-    const Main = async () => {
-      // 1. Parse username safely
-      const urlParams = new URLSearchParams(window.location.search);
-      let user_name = urlParams.get("user_name");
-      user_name = (!user_name || user_name.trim() === '') ? 'abouhatab' : String(user_name).trim();
-
-      try {
-        // 2. Fetch Profile Landing Page
-        const profileResponse = await fetch('https://www.hackster.io/' + user_name);
-        if (!profileResponse.ok) throw new Error('User not found');
-        const profileRawHtml = await profileResponse.text();
-
-        // 3. Extract Author ID using a versatile regex (fixes your split crash)
-        const idMatch = profileRawHtml.match(/entity_id\s*=\s*['"]?(\d+)['"]?/i) || profileRawHtml.match(/"author_id":\s*(\d+)/);
-        let author_id = (idMatch && idMatch[1]) ? idMatch[1] : '648001';
-
-        // 4. Safe DOM Parsing for Profile Metadata
-        const parser = new DOMParser();
-        const profileDoc = parser.parseFromString(profileRawHtml, 'text/html');
-        
-        const avatarImg = profileDoc.querySelector('.user-profile-avatar img, .avatar img, [class*="avatar"] img');
-        const avatarSrc = avatarImg ? avatarImg.getAttribute('src') : '';
-        const displayName = profileDoc.querySelector('h1, .user-profile-name')?.textContent?.trim() || user_name;
-        const userBio = profileDoc.querySelector('.user-profile-tagline, .bio')?.textContent?.trim() || '';
-
-        // 5. Render Profile Header Block cleanly
-        document.getElementById('profile-target').innerHTML = `
-          <table class="profile-table">
-            <tr>
-              <td><a href="${avatarSrc}" target="_blank"><img src="${avatarSrc}" style="height:60px; width:60px; border-radius:50%;"></a></td>
-              <td><a href="https://www.hackster.io/${user_name}" target="_blank">${displayName}</a></td>
-              <td>${userBio}</td>
-              <td>
-                <form class="search-form" action="?" target="_top" method="get">
-                  <input type="text" id="user_name" name="user_name" value="${user_name}">
-                  <input type="submit" value="Submit">
-                </form>
-              </td>
-            </tr>
-          </table>
-          <br><hr style="width:90%;"><br>
-        `;
-
-        // 6. Fetch Bearer Token & Core Projects List via GraphQL API
-        const tokenResp = await fetch('https://www.hackster.io/users/api_token');
-        const { client_token } = await tokenResp.json();
-
-        const queryUri = `https://api.hackster.io/graphql/query?json_data=${encodeURIComponent(JSON.stringify({
-          t: "projects_with_simple_pagination",
-          variables: { author_id: parseInt(author_id), guest_post: false, publication_state: "PUBLIC", sort: "DATE_DESC", per_page: 100 }
-        }))}`;
-
-        const projectsResp = await fetch(queryUri, { headers: { "Authorization": "Bearer " + client_token } });
-        const projectsJson = await projectsResp.json();
-        const records = projectsJson?.projects?.records || [];
-
-        // 7. Initialize Dynamic Projects Data Table
-        let tableHtml = `
-          <table>
-            <tr>
-              <th>Cover image</th>
-              <th>Project name <br> Elevator pitch</th>
-              <th>Schematics</th>
-              <th>Code</th>
-              <th>Respects <br> Views <br> Comments <br> Published</th>
-            </tr>
-        `;
-
-        // 8. Loop and safely extract contents per project page
-        for (let project of records) {
-          const projectUrl = project['url'];
-          let schematicHtml = '';
-          let codeHtml = '';
-          let publishedDate = '';
-          let commentCount = '0';
-
-          try {
-            const projectPageResp = await fetch(projectUrl);
-            if (projectPageResp.ok) {
-              const projectHtmlStr = await projectPageResp.text();
-              const projectDoc = parser.parseFromString(projectHtmlStr, 'text/html');
-
-              // Safe extraction of Schematics
-              const schematicImg = projectDoc.querySelector('#schematics img, .embed-characteristic img');
-              if (schematicImg) {
-                const imgSrc = schematicImg.getAttribute('src');
-                schematicHtml = `<a href="${imgSrc}" target="_blank"><img src="${imgSrc}?auto=compress%2Cformat"></a>`;
-              }
-
-              // Safe extraction of Source Code links
-              const codeLink = projectDoc.querySelector('#code a[href*="github"], #code a[href*="bitbucket"], #code .actions a');
-              if (codeLink) {
-                let codeUrl = codeLink.getAttribute('href');
-                if (!codeUrl || codeUrl === '#svg-clipboard' || codeUrl.startsWith('#')) {
-                  codeUrl = `${projectUrl.replace('www.', '')}#code`;
-                }
-                const domain = codeUrl.split('/')[2] || 'Source Link';
-                codeHtml = `<a href="${codeUrl}" target="_blank">${domain}</a>`;
-              }
-
-              // Safe extraction of Timestamp
-              const timeMeta = projectDoc.querySelector('[itemprop="datePublished"]');
-              if (timeMeta) publishedDate = timeMeta.textContent.trim();
-
-              // Safe extraction of Comment Counts
-              const commentMeta = projectDoc.querySelector('a[href="#comments"] .nav-count, .comments-count');
-              if (commentMeta) commentCount = commentMeta.textContent.replace(/[()]/g, '').trim();
-            }
-          } catch (e) {
-            console.warn("Could not fetch secondary metadata for: " + projectUrl, e);
-          }
-
-          // Build row safely using sanitized values
-          tableHtml += `
-            <tr>
-              <td><a href="${project['cover_image_url']}" target="_blank"><img src="${project['cover_image_url']}"></a></td>
-              <td style="text-align: left;">
-                <a href="${projectUrl}" target="_blank" style="font-weight:bold; color:#2E9FE6; text-decoration:none;">${project['name']}</a>
-                <br><small style="color:#555;">${project['one_liner'] || ''}</small>
-              </td>
-              <td>${schematicHtml}</td>
-              <td>${codeHtml}</td>
-              <td>
-                ${project['stats']['respects']} <br> 
-                ${project['stats']['views']} <br> 
-                ${commentCount} <br> 
-                <small style="color:#777;">${publishedDate}</small>
-              </td>
-            </tr>
-          `;
-        }
-
-        tableHtml += `</table><br><br><br>`;
-        document.getElementById('table-target').innerHTML = tableHtml;
-
-      } catch (error) {
-        console.error("App execution failed:", error);
-        document.getElementById('profile-target').innerHTML = `<p style="text-align:center; color:red;">Error loading profile or data metrics.</p>`;
-      }
-    };
-
-    Main();
-  </script>
-</body>
-</html>
-
-
-<!-- <!DOCTYPE html>
 <html>
 
 <body>
@@ -181,8 +8,10 @@
       user_name = user_name == null || user_name == '' ? 'abouhatab' : String(user_name);
       let Profile = (await (await fetch('https://www.hackster.io/' + user_name)).text());
       //let author_id = Profile.split('entityId')[1].split('"')[1];
-      let author_id = Profile.split('window.HAnalyticsGlobalData.entity_id = ')[1].split(';')[0]
-      if (isNaN(author_id)) author_id = '648001';
+      // let author_id = Profile.split('window.HAnalyticsGlobalData.entity_id = ')[1].split(';')[0]
+      // if (isNaN(author_id)) author_id = '648001';
+      const idMatch = Profile.match(/entity_id\s*=\s*['"]?(\d+)['"]?/i) || Profile.match(/"author_id":\s*(\d+)/);
+      let author_id = (idMatch && idMatch[1]) ? idMatch[1] : '648001';
       Profile = (new DOMParser()).parseFromString(Profile.split('<div class="">')[1], 'text/html').body.firstChild.firstChild.firstChild;
       document.write('<!DOCTYPE html><html><head><style>');
       document.write('table { border-collapse: collapse; border-radius: 10px; outline: 1px solid gray; margin: 0px auto; text-align: center; width:90%}');
@@ -259,4 +88,4 @@
   </script>
 </body>
 
-</html> -->
+</html>
